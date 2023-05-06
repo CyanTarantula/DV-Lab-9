@@ -49,13 +49,13 @@ app.layout = html.Div([
                             id='my-date-picker-single',
                             min_date_allowed=date(2020, 2, 1),
                             max_date_allowed=date(2023, 3, 9),
-                            initial_visible_month=date(2023, 3, 9),
-                            date=date(2023, 3, 9)
+                            initial_visible_month=date(2021, 8, 1),
+                            date=date(2021, 8, 1)
                         ),
                     ], className="row"),
 
                     html.Div([
-                        html.Span("Select Country: ", style={"text-align": "right"}),
+                        html.Span("Select Country: "),
                         dcc.Dropdown(
                             id="country-selected",
                             options=[{'label': i, 'value': i} for i in countries],
@@ -72,6 +72,17 @@ app.layout = html.Div([
 
         html.Div([
             html.Div([
+                html.Div([
+                    html.H4("Incident Rate", className="metric-title"),
+                    html.Div(id="incident-rate", className="metric-value")
+                ], className='col metric'),
+                html.Div([
+                    html.H4("Case Fatality Ratio", className="metric-title"),
+                    html.Div(id="case-fatality-ratio", className="metric-value")
+                ], className='col metric'),
+            ], className='row metrics'),
+
+            html.Div([
                 dcc.Graph(id="pie-chart"),
             ]),
         ], className="col right-section"),
@@ -83,10 +94,10 @@ app.layout = html.Div([
 ], className="container")
 
 
-def prepare_daily_report(date_value="2023-03-09"):
+def prepare_daily_report(date_value="2021-08-01"):
     current_date = datetime.strptime(
         date_value, '%Y-%m-%d').strftime('%m-%d-%Y')
-    print("Current Date:", current_date)
+    # print("Current Date:", current_date)
 
     df = pd.read_csv(
         'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/' + current_date + '.csv')
@@ -163,11 +174,13 @@ def update_pie_chart(date, country):
     df = pd.read_csv(
         'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/' + current_date + '.csv')
     df.replace('US', 'United States', inplace=True)
+    df = df.groupby(['Country_Region']).sum().reset_index()
     df = df[df['Country_Region'] == country]
-    df = df.groupby(['Last_Update']).sum().reset_index()
-    # create rows with value of confirmed, deaths, recovered and active
-    df = pd.melt(df, id_vars=['Last_Update'], value_vars=['Confirmed', 'Deaths', 'Recovered', 'Active'], var_name='Toll-type', value_name='Count')
-    print(df)
+    # df = df[df['Country_Region'] == country]
+    # df = df.groupby(['Last_Update']).sum().reset_index()
+    
+    df = pd.melt(df, id_vars=['Country_Region'], value_vars=['Confirmed', 'Deaths', 'Recovered', 'Active'], var_name='Toll-type', value_name='Count')
+    # print(df)
     
     fig = px.pie(df, values='Count', names='Toll-type', title='Distribution of all the cases in ' + country)
     fig.update_traces(
@@ -184,6 +197,33 @@ def update_pie_chart(date, country):
     )
     return fig
 
+
+@app.callback(
+    [
+        Output("incident-rate", "children"),
+        Output("case-fatality-ratio", "children"),
+    ],
+    [
+        Input("my-date-picker-single", "date"),
+        Input("country-selected", "value"),
+    ]
+)
+def update_metrics(date, country):
+    current_date = datetime.strptime(
+        date, '%Y-%m-%d').strftime('%m-%d-%Y')
+    
+    df = pd.read_csv(
+        'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/' + current_date + '.csv')
+    df.replace('US', 'United States', inplace=True)
+    df = df.groupby(['Country_Region']).sum().reset_index()
+    df = df[df['Country_Region'] == country]
+    # df = df.groupby(['Last_Update']).sum().reset_index()
+    # print(df)
+
+    return [
+        round(df['Incident_Rate'], 2),
+        round(df['Case_Fatality_Ratio'], 2),
+    ]
 
 
 if __name__ == '__main__':
